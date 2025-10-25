@@ -23,7 +23,7 @@ from db import (
     tmdb_col
 )
 from config import *
-from tmdb import get_movie_id, get_tv_id, get_info, format_tmdb_info
+from tmdb import get_movie_id, get_tv_id, get_info
 from mutagen.mp3 import MP3
 from mutagen.flac import FLAC
 from mutagen.mp4 import MP4
@@ -363,11 +363,6 @@ async def restore_tmdb_photos(bot, start_id=None):
         tmdb_type = doc.get("tmdb_type")
         try:
             info = await get_info(tmdb_type, tmdb_id)
-            if not info:
-                continue
-
-            upsert_tmdb_info(info)
-            formatted_message = format_tmdb_info(info)
             poster_url = info.get('poster_url')
             trailer_url = info.get('trailer_url')
 
@@ -553,21 +548,10 @@ async def process_tmdb_info(bot, file_info):
         else:
             result = await get_movie_id(title, year)
           
-        if not result:
-            return
-          
         tmdb_id, tmdb_type = result['id'], result['media_type']
         exists = tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
         if not exists:
             info = await get_info(tmdb_type, tmdb_id)
-            if not info:
-                return
-
-            # Add file info to the document
-            info['files'] = [file_info]
-
-            upsert_tmdb_info(info)
-            formatted_message = format_tmdb_info(info)
             poster_url = info.get('poster_url')
             trailer_url = info.get('trailer_url')
 
@@ -576,6 +560,7 @@ async def process_tmdb_info(bot, file_info):
             ) if trailer_url else None
 
             if poster_url:
+                upsert_tmdb_info(tmdb_id, tmdb_type)
                 await safe_api_call(
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,
