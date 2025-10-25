@@ -506,16 +506,8 @@ async def handle_duplicate_file(bot, file_info):
     existing = files_col.find_one({
         "file_name": file_info["file_name"]
     })
-
-    existing_in_tmdb = tmdb_col.find_one({
-        "files": {
-            "$elemMatch": {
-                "file_name": file_info["file_name"]
-            }
-        }
-    })
   
-    if existing or existing_in_tmdb:
+    if existing:
         telegram_link = generate_c_link(file_info["channel_id"], file_info["message_id"])
         await safe_api_call(
             bot.send_message(
@@ -603,8 +595,7 @@ async def file_queue_worker(bot):
         item = await file_queue.get()
         file_info, _, message, duplicate = item
         try:
-            if duplicate:
-                await handle_duplicate_file(bot, file_info)
+            if duplicate and await handle_duplicate_file(bot, file_info):
                 continue
               
             upsert_file_info(file_info)
