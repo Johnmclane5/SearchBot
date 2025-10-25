@@ -606,14 +606,14 @@ async def file_queue_worker(bot):
             if duplicate:
                 await handle_duplicate_file(bot, file_info)
                 continue
-
+              
+            upsert_file_info(file_info)
+          
             # Process TMDB info and get the result
             await process_tmdb_info(bot, file_info)
 
             if message.audio:
-                await process_audio_file(bot, message)
-            
-            upsert_file_info(file_info)
+                await process_audio_file(bot, message)        
 
         except Exception as e:
             logger.error(f"❌ Error saving file: {e}")
