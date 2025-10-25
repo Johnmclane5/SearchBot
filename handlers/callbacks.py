@@ -164,6 +164,7 @@ async def send_file_callback(client, callback_query: CallbackQuery):
             protect_content=True,
             reply_markup=reply_markup
         ))
+        await safe_api_call(callback_query.answer())
  
         if copy_msg:
             bot.user_file_count[user_id] = bot.user_file_count.get(user_id, 0) + 1
