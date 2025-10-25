@@ -365,6 +365,7 @@ async def restore_tmdb_photos(bot, start_id=None):
             info = await get_info(tmdb_type, tmdb_id)
             poster_url = info.get('poster_url')
             trailer_url = info.get('trailer_url')
+            message = info.get('message')
 
             keyboard = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
@@ -375,7 +376,7 @@ async def restore_tmdb_photos(bot, start_id=None):
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,
                         photo=poster_url,
-                        caption=formatted_message,
+                        caption=message,
                         parse_mode=enums.ParseMode.HTML,
                         reply_markup=keyboard
                     )
@@ -554,6 +555,7 @@ async def process_tmdb_info(bot, file_info):
             info = await get_info(tmdb_type, tmdb_id)
             poster_url = info.get('poster_url')
             trailer_url = info.get('trailer_url')
+            message = info.get('message')
 
             keyboard = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
@@ -565,7 +567,7 @@ async def process_tmdb_info(bot, file_info):
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,
                         photo=poster_url,
-                        caption=formatted_message,
+                        caption=message,
                         parse_mode=enums.ParseMode.HTML,
                         reply_markup=keyboard
                     )
