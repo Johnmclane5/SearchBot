@@ -161,15 +161,12 @@ async def send_file_callback(client, callback_query: CallbackQuery):
             from_chat_id=file_doc["channel_id"],
             message_id=file_doc["message_id"],
             caption=f"<b>{file_name}</b>",
+            protect_content=True,
             reply_markup=reply_markup
         ))
  
         if copy_msg:
             bot.user_file_count[user_id] = bot.user_file_count.get(user_id, 0) + 1
-            await safe_api_call(callback_query.answer(
-                "File will delete in few minutes forward it to your saved messages!", show_alert=True
-            ))
-            bot.loop.create_task(delete_after_delay(client, copy_msg.chat.id, copy_msg.id))
         else:
             await safe_api_call(callback_query.answer(
                 "Failed to send file. Please try again later.", show_alert=True
