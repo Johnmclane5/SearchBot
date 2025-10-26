@@ -65,7 +65,7 @@ async def start_handler(client, message):
             welcome_text = (
                 f"Hi <b>{first_name}</b>, welcome! 👋\n\n"
                 "I'm here to help you find what you're looking for. "
-                "Just send me a keyword, and I'll start searching for you! 🔎\n\n"
+                "Just send me a title, and I'll start searching for you! 🔎\n\n"
                f"👤 Joined: {joined_str}"
             )
             buttons = None
