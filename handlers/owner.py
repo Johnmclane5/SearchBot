@@ -2,6 +2,7 @@
 import os
 import sys
 import logging
+import asyncio
 from bson import ObjectId
 from pyrogram.errors import UserIsBlocked, InputUserDeactivated, ListenerTimeout, PeerIdInvalid, UserIsBot
 
@@ -202,6 +203,8 @@ async def index_channel_files(client, message):
 
     reply = await message.reply_text(f"Indexing files from {start_msg_id} to {end_msg_id} in channel {channel_id}... Duplicates allowed: {dup}")
 
+    progress = {"processed": 0, "total": 0}
+
     batch_size = 50
     count = 0
     for batch_start in range(start_msg_id, end_msg_id + 1, batch_size):
@@ -219,15 +222,20 @@ async def index_channel_files(client, message):
             if not msg:
                 continue
             if msg.document or msg.video or msg.audio or msg.photo:
+                progress["total"] += 1
                 await queue_file_for_processing(
                     msg,
                     channel_id=channel_id,
                     reply_func=reply.edit_text,
-                    duplicate=dup
+                    duplicate=dup,
+                    progress=progress
                 )
-                count += 1
-        await safe_api_call(reply.edit_text(f"🔁 Indexing in progress... {count} files queued so far."))
-    await safe_api_call(reply.edit_text(f"✅ Indexing completed! Total files queued: {count}"))
+                
+    while progress["processed"] < progress["total"]:
+        await safe_api_call(reply.edit_text(f"🔁 Indexing in progress... {progress['processed']}/{progress['total']} files processed."))
+        await asyncio.sleep(5)
+
+    await safe_api_call(reply.edit_text(f"✅ Indexing completed! Total files queued: {progress['total']}"))
     await bot.delete_messages(OWNER_ID, [start_msg.id, end_msg.id, prompt.id, prompt2.id, message.id])
     invalidate_search_cache()
 

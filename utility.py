@@ -556,7 +556,7 @@ async def process_tmdb_info(bot, file_info):
                 [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
             ) if trailer_url else None
 
-            if poster_url:
+            if poster_url and SEND_UPDATES:
                 await upsert_tmdb_info(tmdb_id, tmdb_type)
                 await safe_api_call(
                     bot.send_photo(
@@ -581,6 +581,9 @@ async def file_queue_worker(bot):
                 continue
               
             await upsert_file_info(file_info)
+
+            if progress:
+                progress["processed"] += 1
           
             # Process TMDB info and get the result
             await process_tmdb_info(bot, file_info)
