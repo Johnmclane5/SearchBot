@@ -371,7 +371,7 @@ async def restore_tmdb_photos(bot, start_id=None):
                 [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
             ) if trailer_url else None
 
-            if poster_url:
+            if poster_url and SEND_UPDATES:
                 await safe_api_call(
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,

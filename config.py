@@ -60,6 +60,7 @@ TOKEN_VALIDITY_SECONDS = 24 * 60 * 60  # 24 hours
 MONGO_URI = os.getenv("MONGO_URI")
 
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+SEND_UPDATES = os.getenv('SEND_UPDATES', 'True').lower() in ('true', '1', 't')
 
 #SHORTERNER API
 URLSHORTX_API_TOKEN = os.getenv('URLSHORTX_API_TOKEN')

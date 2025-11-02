@@ -8,7 +8,7 @@ from pyrogram.errors import UserIsBlocked, InputUserDeactivated, ListenerTimeout
 from pyrogram import filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN
+from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN, SEND_UPDATES
 from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db
 from utility import (
     extract_channel_and_msg_id,
@@ -457,7 +457,7 @@ async def tmdb_command(client, message):
 
         keyboard = InlineKeyboardMarkup(
             [[InlineKeyboardButton("🎥 Trailer", url=trailer)]]) if trailer else None
-        if poster_url:
+        if poster_url and SEND_UPDATES:
             await safe_api_call(
                 client.send_photo(
                     UPDATE_CHANNEL_ID,
