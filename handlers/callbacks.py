@@ -48,12 +48,12 @@ async def channel_search_callback_handler(client, callback_query: CallbackQuery)
         files, total_files = get_cached_search(query, page, channel_id)
         if not files:
             pipeline = build_search_pipeline(query, [channel_id], skip, bot.SEARCH_PAGE_SIZE)
-            result = list(files_col.aggregate(pipeline))
+            result = await files_col.aggregate(pipeline).to_list(length=None)
             files = result[0]["results"] if result and result[0]["results"] else []
             total_files = result[0]["totalCount"][0]["total"] if result and result[0]["totalCount"] else 0
             set_cached_search(query, page, channel_id, files, total_files)
 
-        channel_info = allowed_channels_col.find_one({'channel_id': channel_id})
+        channel_info = await allowed_channels_col.find_one({'channel_id': channel_id})
         channel_name = channel_info.get('channel_name', str(channel_id)) if channel_info else str(channel_id)
 
         if not files:
@@ -119,10 +119,10 @@ async def send_file_callback(client, callback_query: CallbackQuery):
         decoded = base64.urlsafe_b64decode(file_link + padding).decode()
         channel_id, msg_id = map(int, decoded.split("_"))
 
-        if not is_user_authorized(user_id):
+        if not await is_user_authorized(user_id):
             now = datetime.now(timezone.utc)
-            token_doc = tokens_col.find_one({"user_id": user_id, "expiry": {"$gt": now}})
-            token_id = token_doc["token_id"] if token_doc else generate_token(user_id)
+            token_doc = await tokens_col.find_one({"user_id": user_id, "expiry": {"$gt": now}})
+            token_id = token_doc["token_id"] if token_doc else await generate_token(user_id)
             short_link = await shorten_url(get_token_link(token_id, BOT_USERNAME))
             await safe_api_call(callback_query.edit_message_text(
                 text="To get this file, you'll need to unlock access first. Just tap the button below!",
@@ -139,7 +139,7 @@ async def send_file_callback(client, callback_query: CallbackQuery):
             ))
             return
 
-        file_doc = files_col.find_one({"channel_id": channel_id, "message_id": msg_id})
+        file_doc = await files_col.find_one({"channel_id": channel_id, "message_id": msg_id})
         if not file_doc:
             await callback_query.answer("I couldn't find that file. It might have been removed.", show_alert=True)
             return
@@ -182,7 +182,7 @@ async def view_file_callback_handler(client, callback_query: CallbackQuery):
         channel_id = int(callback_query.matches[0].group(1))
         message_id = int(callback_query.matches[0].group(2))
 
-        file_doc = files_col.find_one({"channel_id": channel_id, "message_id": message_id})
+        file_doc = await files_col.find_one({"channel_id": channel_id, "message_id": message_id})
         if not file_doc:
             await callback_query.answer("❌ File not found!", show_alert=True)
             return
@@ -204,11 +204,11 @@ async def browse_channels_handler(client, callback_query: CallbackQuery):
     try:
         page = int(callback_query.matches[0].group(1))
         user_id = callback_query.from_user.id
-        if not is_user_authorized(user_id):
+        if not await is_user_authorized(user_id):
             await callback_query.answer("You are not authorized to browse files.", show_alert=True)
             return
 
-        channels = list(allowed_channels_col.find({}, {"_id": 0, "channel_id": 1, "channel_name": 1}))
+        channels = await allowed_channels_col.find({}, {"_id": 0, "channel_id": 1, "channel_name": 1}).to_list(length=None)
         if not channels:
             await callback_query.edit_message_text("I couldn't find any channels to browse.")
             return
@@ -255,13 +255,13 @@ async def browse_files_handler(client, callback_query: CallbackQuery):
         page = int(callback_query.matches[0].group(2))
         mode = int(callback_query.matches[0].group(3))
         user_id = callback_query.from_user.id
-        if not is_user_authorized(user_id):
+        if not await is_user_authorized(user_id):
             await callback_query.answer("You are not authorized to browse files.", show_alert=True)
             return
 
         skip = (page - 1) * bot.PAGE_SIZE
-        files = list(files_col.find({"channel_id": channel_id}).sort("_id", -1).skip(skip).limit(bot.PAGE_SIZE))
-        total_files = files_col.count_documents({"channel_id": channel_id})
+        files = await files_col.find({"channel_id": channel_id}).sort("_id", -1).skip(skip).limit(bot.PAGE_SIZE).to_list(length=None)
+        total_files = await files_col.count_documents({"channel_id": channel_id})
 
         if not files:
             await callback_query.edit_message_text("I couldn't find any files in this channel.")
@@ -297,7 +297,7 @@ async def browse_files_handler(client, callback_query: CallbackQuery):
         buttons.append([InlineKeyboardButton("Back", callback_data="browse_channels:1")])
 
         reply_markup = InlineKeyboardMarkup(buttons)
-        channel_info = allowed_channels_col.find_one({'channel_id': channel_id})
+        channel_info = await allowed_channels_col.find_one({'channel_id': channel_id})
         channel_name = channel_info.get('channel_name', str(channel_id)) if channel_info else str(channel_id)
         await callback_query.edit_message_text(
             f"<b>Files in {channel_name}:</b>",

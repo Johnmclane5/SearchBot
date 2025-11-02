@@ -35,7 +35,7 @@ async def start_handler(client, message):
         user_link = await get_user_link(message.from_user)
         first_name = message.from_user.first_name or "there"
         username = message.from_user.username or None
-        user_doc = add_user(user_id)
+        user_doc = await add_user(user_id)
 
         if user_doc["_new"]:
             log_msg = f"👤 New user added:\nID: <code>{user_id}</code>\n"
@@ -51,8 +51,8 @@ async def start_handler(client, message):
             return
 
         if len(message.command) == 2 and message.command[1].startswith("token_"):
-            if is_token_valid(message.command[1][6:], user_id):
-                authorize_user(user_id)
+            if await is_token_valid(message.command[1][6:], user_id):
+                await authorize_user(user_id)
                 reply_msg = await safe_api_call(message.reply_text("Great! You're all set to get files. ✅"))
                 await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"✅ User <b>{user_link} | <code>{user_id}</code></b> authorized via @{BOT_USERNAME}"))
             else:
@@ -69,7 +69,7 @@ async def start_handler(client, message):
                f"👤 Joined: {joined_str}"
             )
             buttons = None
-            if is_user_authorized(user_id):
+            if await is_user_authorized(user_id):
                 buttons = [[InlineKeyboardButton("Browse Files 📂", callback_data="browse_channels:1")]]
             reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
             reply_msg = await safe_api_call(message.reply_text(
@@ -113,7 +113,7 @@ async def instant_search_handler(client, message):
             return
 
         query_id = store_query(query)
-        user_doc = add_user(user_id)
+        user_doc = await add_user(user_id)
         if user_doc.get("blocked", True):
             return
 
@@ -133,7 +133,7 @@ async def instant_search_handler(client, message):
             bot.loop.create_task(auto_delete_message(message, reply))
             return
 
-        channels = list(allowed_channels_col.find({}, {"_id": 0, "channel_id": 1, "channel_name": 1}))
+        channels = await allowed_channels_col.find({}, {"_id": 0, "channel_id": 1, "channel_name": 1}).to_list(length=None)
         if not channels:
             await safe_api_call(reply.edit_text("I couldn't find any channels to search in. Please check back later!"))
             return

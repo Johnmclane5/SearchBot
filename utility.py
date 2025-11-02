@@ -149,18 +149,16 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
 # =========================
 
 async def get_allowed_channels():
-    return [
-        doc["channel_id"]
-        for doc in allowed_channels_col.find({}, {"_id": 0, "channel_id": 1})
-    ]
+    cursor = allowed_channels_col.find({}, {"_id": 0, "channel_id": 1})
+    return [doc["channel_id"] async for doc in cursor]
 
-def add_user(user_id):
+async def add_user(user_id):
     """
     Add a user to users_col only if not already present.
     Stores user_id, joined_date (UTC), and blocked status.
     Returns the user document with an extra key '_new' (True if newly added).
     """
-    user_doc = users_col.find_one({"user_id": user_id})
+    user_doc = await users_col.find_one({"user_id": user_id})
     
     if not user_doc:
         user_doc = {
@@ -168,9 +166,7 @@ def add_user(user_id):
             "joined": datetime.now(timezone.utc),
             "blocked": False
         }
-
-        users_col.insert_one(user_doc)
-
+        await users_col.insert_one(user_doc)
         user_doc["_new"] = True
     else:
         user_doc["_new"] = False
@@ -178,20 +174,20 @@ def add_user(user_id):
     return user_doc
 
 
-def authorize_user(user_id):
+async def authorize_user(user_id):
     """Authorize a user for 24 hours."""
     expiry = datetime.now(timezone.utc) + timedelta(seconds=TOKEN_VALIDITY_SECONDS)
-    auth_users_col.update_one(
+    await auth_users_col.update_one(
         {"user_id": user_id},
         {"$set": {"expiry": expiry}},
         upsert=True
     )
 
-def is_user_authorized(user_id):
+async def is_user_authorized(user_id):
     if user_id == OWNER_ID:
         return True
     """Check if a user is authorized."""
-    doc = auth_users_col.find_one({"user_id": user_id})
+    doc = await auth_users_col.find_one({"user_id": user_id})
     if not doc:
         return False
     expiry = doc["expiry"]
@@ -234,11 +230,11 @@ async def get_user_firstname(user_id: int) -> str:
 # Token Utilities
 # =========================
 
-def generate_token(user_id):
+async def generate_token(user_id):
     """Generate a new access token for a user."""
     token_id = str(uuid.uuid4())
     expiry = datetime.now(timezone.utc) + timedelta(seconds=TOKEN_VALIDITY_SECONDS)
-    tokens_col.insert_one({
+    await tokens_col.insert_one({
         "token_id": token_id,
         "user_id": user_id,
         "expiry": expiry,
@@ -246,16 +242,16 @@ def generate_token(user_id):
     })
     return token_id
 
-def is_token_valid(token_id, user_id):
+async def is_token_valid(token_id, user_id):
     """Check if a token is valid for a user."""
-    token = tokens_col.find_one({"token_id": token_id, "user_id": user_id})
+    token = await tokens_col.find_one({"token_id": token_id, "user_id": user_id})
     if not token:
         return False
     expiry = token["expiry"]
     if expiry.tzinfo is None:
         expiry = expiry.replace(tzinfo=timezone.utc)
     if expiry < datetime.now(timezone.utc):
-        tokens_col.delete_one({"_id": token["_id"]})
+        await tokens_col.delete_one({"_id": token["_id"]})
         return False
     return True
 
@@ -329,20 +325,20 @@ async def shorten_url(url):
 # =========================
 # File Utilities
 # =========================
-def upsert_file_info(file_info):
+async def upsert_file_info(file_info):
     """Insert or update file info, avoiding duplicates."""
-    files_col.update_one(
+    await files_col.update_one(
         {"channel_id": file_info["channel_id"], "message_id": file_info["message_id"]},
         {"$set": file_info},
         upsert=True
     )
 
-def upsert_tmdb_info(tmdb_id, tmdb_type):
+async def upsert_tmdb_info(tmdb_id, tmdb_type):
     """
     Insert or update TMDB info in tmdb_col.
     Only stores tmdb_id and tmdb_type.
     """
-    tmdb_col.update_one(
+    await tmdb_col.update_one(
         {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type},
         {"$setOnInsert": {"tmdb_id": tmdb_id, "tmdb_type": tmdb_type}},
         upsert=True
@@ -357,8 +353,7 @@ async def restore_tmdb_photos(bot, start_id=None):
     if start_id:
         query['_id'] = {'$gt': start_id}
     cursor = tmdb_col.find(query).sort('_id', 1)
-    docs = list(cursor)
-    for doc in docs:
+    async for doc in cursor:
         tmdb_id = doc.get("tmdb_id")
         tmdb_type = doc.get("tmdb_type")
         try:
@@ -499,7 +494,7 @@ file_queue = asyncio.Queue()
 
 async def handle_duplicate_file(bot, file_info):
     """Checks for duplicate files and logs if found."""
-    existing = files_col.find_one({
+    existing = await files_col.find_one({
         "file_name": file_info["file_name"]
     })
   
@@ -550,7 +545,7 @@ async def process_tmdb_info(bot, file_info):
             result = await get_movie_id(title, year)
           
         tmdb_id, tmdb_type = result['id'], result['media_type']
-        exists = tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
+        exists = await tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
         if not exists:
             info = await get_info(tmdb_type, tmdb_id)
             poster_url = info.get('poster_url')
@@ -562,7 +557,7 @@ async def process_tmdb_info(bot, file_info):
             ) if trailer_url else None
 
             if poster_url:
-                upsert_tmdb_info(tmdb_id, tmdb_type)
+                await upsert_tmdb_info(tmdb_id, tmdb_type)
                 await safe_api_call(
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,
@@ -580,12 +575,12 @@ async def process_tmdb_info(bot, file_info):
 async def file_queue_worker(bot):
     while True:
         item = await file_queue.get()
-        file_info, _, message, duplicate = item
+        file_info, _, message, duplicate, progress = item
         try:
             if duplicate and await handle_duplicate_file(bot, file_info):
                 continue
               
-            upsert_file_info(file_info)
+            await upsert_file_info(file_info)
           
             # Process TMDB info and get the result
             await process_tmdb_info(bot, file_info)
@@ -596,35 +591,37 @@ async def file_queue_worker(bot):
         except Exception as e:
             logger.error(f"❌ Error saving file: {e}")
         finally:
+            if progress:
+                progress["processed"] += 1
             file_queue.task_done()
 
 # =========================
 # Unified File Queueing
 # =========================
 
-async def queue_file_for_processing(message, channel_id=None, reply_func=None, duplicate=True):
+async def queue_file_for_processing(message, channel_id=None, reply_func=None, duplicate=True, progress=None):
     try:            
         file_info = extract_file_info(message, channel_id=channel_id)
         if file_info["file_name"]:
-            await file_queue.put((file_info, reply_func, message, duplicate))
+            await file_queue.put((file_info, reply_func, message, duplicate, progress))
     except Exception as e:
         if reply_func:
             await safe_api_call(reply_func(f"❌ Error queuing file: {e}"))
 
-def delete_expired_auth_users():
+async def delete_expired_auth_users():
     """
     Delete expired auth users from auth_users_col using 'expiry' field.
     """
     now = datetime.now(timezone.utc)
-    result = auth_users_col.delete_many({"expiry": {"$lt": now}})
+    result = await auth_users_col.delete_many({"expiry": {"$lt": now}})
     logger.info(f"Deleted {result.deleted_count} expired auth users.")
 
-def delete_expired_tokens():
+async def delete_expired_tokens():
     """
     Delete expired tokens from tokens_col using 'expiry' field.
     """
     now = datetime.now(timezone.utc)
-    result = tokens_col.delete_many({"expiry": {"$lt": now}})
+    result = await tokens_col.delete_many({"expiry": {"$lt": now}})
     logger.info(f"Deleted {result.deleted_count} expired tokens.")
 
 async def periodic_expiry_cleanup(interval_seconds=3600 * 4):
@@ -632,8 +629,8 @@ async def periodic_expiry_cleanup(interval_seconds=3600 * 4):
     Periodically delete expired auth users and tokens.
     """
     while True:
-        delete_expired_auth_users()
-        delete_expired_tokens()
+        await delete_expired_auth_users()
+        await delete_expired_tokens()
         await asyncio.sleep(interval_seconds)
 
 
