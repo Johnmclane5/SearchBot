@@ -14,6 +14,7 @@ from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_
 from utility import (
     extract_channel_and_msg_id,
     get_allowed_channels,
+    get_queue_size,
     queue_file_for_processing,
     invalidate_search_cache,
     auto_delete_message,
@@ -66,9 +67,15 @@ async def del_file_handler(client, message):
 @bot.on_message(filters.command("copy") & filters.private & filters.user(OWNER_ID))
 async def copy_file_handler(client, message):
     try:
+<<<<<<< HEAD
+        if len(message.command) != 4:
+            await message.reply_text("<b>Usage:</b> /copy start_link end_link dest_link")
+            return
+=======
         if len(message.command) != 4:
             await message.reply_text("<b>Usage:</b> /copy <start_link> <end_link> <dest_link>")
             return
+>>>>>>> eed55dfaeed1d0c92873a89a2909c8eb47e33f93
 
         start_link, end_link, dest_link = message.command[1], message.command[2], message.command[3]
 
@@ -151,6 +158,22 @@ async def copy_file_handler(client, message):
         logger.error(f"[copy_file_handler] Error: {e}")
         await message.reply_text("❌ <b>An error occurred during the copy process.</b>")
 
+<<<<<<< HEAD
+async def watch_queue(reply, total_files):
+    last_message = ""
+    while get_queue_size() > 0:
+        processed_files = total_files - get_queue_size()
+        current_message = f"🔁 <b>Processing files...</b> {processed_files}/{total_files} processed."
+        if last_message != current_message:
+            await safe_api_call(reply.edit_text(current_message))
+            last_message = current_message
+        await asyncio.sleep(10)
+
+    final_message = f"✅ <b>Indexing completed!</b> {total_files} files processed."
+    if last_message != final_message:
+        await safe_api_call(reply.edit_text(final_message))
+
+=======
 
 async def watch_queue(reply, total_files):
     last_message = ""
@@ -166,13 +189,21 @@ async def watch_queue(reply, total_files):
     if last_message != final_message:
         await safe_api_call(reply.edit_text(final_message))
 
+>>>>>>> eed55dfaeed1d0c92873a89a2909c8eb47e33f93
 @bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
 async def index_channel_files(client, message):
     try:
+<<<<<<< HEAD
+        args = message.command
+        if not (3 <= len(args) <= 4):
+            await message.reply_text("<b>Usage:</b> /index start_link end_link dup")
+            return
+=======
         args = message.command
         if not (3 <= len(args) <= 4):
             await message.reply_text("<b>Usage:</b> /index <start_link> <end_link> [dup]")
             return
+>>>>>>> eed55dfaeed1d0c92873a89a2909c8eb47e33f93
 
         start_link, end_link = args[1], args[2]
         dup = len(args) == 4 and args[3].lower() == "dup"

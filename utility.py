@@ -492,6 +492,10 @@ async def extract_tmdb_link(tmdb_url):
 
 file_queue = asyncio.Queue()
 
+def get_queue_size():
+    """Returns the current size of the file processing queue."""
+    return file_queue.qsize()
+
 async def handle_duplicate_file(bot, file_info):
     """Checks for duplicate files and logs if found."""
     existing = await files_col.find_one({
@@ -568,9 +572,8 @@ async def process_tmdb_info(bot, file_info):
                     )
                 )
 
-    except Exception as e:
-        logger.info(f"TMDB Info not found for {file_info['file_name']}: {e}")
-
+    except Exception:
+        logger.info(f"TMDB Info not found for \n <code>{file_info['file_name']}</code>")
 
 async def file_queue_worker(bot):
     while True:
