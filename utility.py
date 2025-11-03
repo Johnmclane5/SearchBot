@@ -575,16 +575,13 @@ async def process_tmdb_info(bot, file_info):
 async def file_queue_worker(bot):
     while True:
         item = await file_queue.get()
-        file_info, _, message, duplicate, progress = item
+        file_info, _, message, duplicate = item
         try:
             if duplicate and await handle_duplicate_file(bot, file_info):
                 continue
               
             await upsert_file_info(file_info)
 
-            if progress:
-                progress["processed"] += 1
-          
             # Process TMDB info and get the result
             await process_tmdb_info(bot, file_info)
 
@@ -594,19 +591,17 @@ async def file_queue_worker(bot):
         except Exception as e:
             logger.error(f"❌ Error saving file: {e}")
         finally:
-            if progress:
-                progress["processed"] += 1
             file_queue.task_done()
 
 # =========================
 # Unified File Queueing
 # =========================
 
-async def queue_file_for_processing(message, channel_id=None, reply_func=None, duplicate=True, progress=None):
+async def queue_file_for_processing(message, channel_id=None, reply_func=None, duplicate=True):
     try:            
         file_info = extract_file_info(message, channel_id=channel_id)
         if file_info["file_name"]:
-            await file_queue.put((file_info, reply_func, message, duplicate, progress))
+            await file_queue.put((file_info, reply_func, message, duplicate))
     except Exception as e:
         if reply_func:
             await safe_api_call(reply_func(f"❌ Error queuing file: {e}"))

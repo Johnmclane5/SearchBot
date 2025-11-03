@@ -66,36 +66,31 @@ async def del_file_handler(client, message):
 @bot.on_message(filters.command("copy") & filters.private & filters.user(OWNER_ID))
 async def copy_file_handler(client, message):
     try:
-        status_msg = None
+        if len(message.command) != 4:
+            await message.reply_text("<b>Usage:</b> /copy <start_link> <end_link> <dest_link>")
+            return
 
-        reply = await message.reply_text("📥 <b>Please forward the <u>start</u> message to copy.</b>")
-        start_msg = await client.listen(OWNER_ID, timeout=120)
+        start_link, end_link, dest_link = message.command[1], message.command[2], message.command[3]
 
-        await reply.edit_text("📤 <b>Now forward the <u>end</u> message to copy.</b>")
-        end_msg = await client.listen(OWNER_ID, timeout=120)
+        try:
+            source_channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+            end_source_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+            dest_channel_id, _ = extract_channel_and_msg_id(dest_link)
+        except ValueError as e:
+            await message.reply_text(f"⚠️ <b>Invalid Link:</b> {e}")
+            return
 
-        if not start_msg.forward_from_chat or not end_msg.forward_from_chat:
-            return await reply.edit_text("⚠️ <b>Both messages must be forwarded from a channel.</b>")
+        if source_channel_id != end_source_channel_id:
+            return await message.reply_text("⚠️ <b>Start and end links must be from the same channel.</b>")
 
-        source_channel_id = start_msg.forward_from_chat.id
-        if source_channel_id != end_msg.forward_from_chat.id:
-            return await reply.edit_text("⚠️ <b>Start and end messages must be from the same channel.</b>")
-
-        await reply.edit_text("📍 <b>Now forward <u>any message</u> from the destination channel.</b>")
-        dest_msg = await client.listen(OWNER_ID, timeout=120)
-
-        if not dest_msg.forward_from_chat:
-            return await reply.edit_text("⚠️ <b>Destination message must be forwarded from a channel.</b>")
-
-        dest_channel_id = dest_msg.forward_from_chat.id
         if source_channel_id == dest_channel_id:
-            return await reply.edit_text("⚠️ <b>Source and destination channels must be different.</b>")
+            return await message.reply_text("⚠️ <b>Source and destination channels must be different.</b>")
 
-        start_id = min(start_msg.forward_from_message_id, end_msg.forward_from_message_id)
-        end_id = max(start_msg.forward_from_message_id, end_msg.forward_from_message_id)
+        start_id = min(start_msg_id, end_msg_id)
+        end_id = max(start_msg_id, end_msg_id)
         total = end_id - start_id + 1
 
-        status_msg= await message.reply_text(
+        status_msg = await message.reply_text(
             f"🔁 <b>Copying messages from ID <code>{start_id}</code> to <code>{end_id}</code>...</b>\n"
             f"📦 <i>Total messages to check: {total}</i>"
         )
@@ -112,7 +107,7 @@ async def copy_file_handler(client, message):
 
                     media = msg.document or msg.video or msg.audio
                     if not media:
-                        continue  # Skip non-media messages
+                        continue
 
                     caption = msg.caption or getattr(media, "file_name", "No Caption")
                     caption = remove_unwanted(caption)
@@ -152,145 +147,140 @@ async def copy_file_handler(client, message):
             f"❌ <b>Failed to copy:</b> {failed}\n"
             f"📂 <i>Total messages checked:</i> {total}"
         ))
-
-        await safe_api_call(bot.delete_messages(OWNER_ID, [start_msg.id, end_msg.id, dest_msg.id, reply.id, message.id]))
-
-        invalidate_search_cache()
-    except ListenerTimeout:
-        await reply.edit_text("⏰ Timeout! You took too long to reply. Please try again.")
     except Exception as e:
         logger.error(f"[copy_file_handler] Error: {e}")
-        if status_msg:
-            await status_msg.edit_text("❌ <b>An error occurred during the copy process.</b>")
+        await message.reply_text("❌ <b>An error occurred during the copy process.</b>")
+
+
+async def watch_queue(reply, total_files):
+    last_message = ""
+    while get_queue_size() > 0:
+        processed_files = total_files - get_queue_size()
+        current_message = f"🔁 <b>Processing files...</b> {processed_files}/{total_files} processed."
+        if last_message != current_message:
+            await safe_api_call(reply.edit_text(current_message))
+            last_message = current_message
+        await asyncio.sleep(10)
+
+    final_message = f"✅ <b>Indexing completed!</b> {total_files} files processed."
+    if last_message != final_message:
+        await safe_api_call(reply.edit_text(final_message))
 
 @bot.on_message(filters.command("index") & filters.private & filters.user(OWNER_ID))
 async def index_channel_files(client, message):
-    dup = False
-    if len(message.command) > 1 and message.command[1].lower() == "dup":
-        dup = True
-
     try:
-        prompt = await safe_api_call(message.reply_text("Please send the **start file link** (Telegram message link, only /c/ links supported):"))
-        start_msg = await client.listen(OWNER_ID, timeout=120)
-        start_link = start_msg.text.strip()
-
-        prompt2 = await safe_api_call(message.reply_text("Now send the **end file link** (Telegram message link, only /c/ links supported):"))
-        end_msg = await client.listen(OWNER_ID, timeout=120)
-        end_link = end_msg.text.strip()
-
-        start_id, start_msg_id = extract_channel_and_msg_id(start_link)
-        end_id, end_msg_id = extract_channel_and_msg_id(end_link)
-
-        if start_id != end_id:
-            await message.reply_text("Start and end links must be from the same channel.")
+        args = message.command
+        if not (3 <= len(args) <= 4):
+            await message.reply_text("<b>Usage:</b> /index <start_link> <end_link> [dup]")
             return
 
-        channel_id = start_id
+        start_link, end_link = args[1], args[2]
+        dup = len(args) == 4 and args[3].lower() == "dup"
+
+        try:
+            start_channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+            end_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+        except ValueError as e:
+            await message.reply_text(f"⚠️ <b>Invalid Link:</b> {e}")
+            return
+
+        if start_channel_id != end_channel_id:
+            await message.reply_text("⚠️ <b>Start and end links must be from the same channel.</b>")
+            return
+
+        channel_id = start_channel_id
         allowed_channels = await get_allowed_channels()
         if channel_id not in allowed_channels:
-            await message.reply_text("❌ This channel is not allowed for indexing.")
+            await message.reply_text("❌ <b>This channel is not allowed for indexing.</b>")
             return
 
-        if start_msg_id > end_msg_id:
-            start_msg_id, end_msg_id = end_msg_id, start_msg_id
+        start_id = min(start_msg_id, end_msg_id)
+        end_id = max(start_msg_id, end_msg_id)
 
-    except ListenerTimeout:
-        await safe_api_call(prompt.edit_text("⏰ Timeout! You took too long to reply. Please try again."))
-        return
-    except ValueError as e:
-        await message.reply_text(f"Invalid link: {e}")
-        return
+        reply = await message.reply_text(f"🔁 <b>Indexing files from <code>{start_id}</code> to <code>{end_id}</code>...</b>\n"
+                                       f"Duplicates allowed: {dup}")
 
-    reply = await message.reply_text(f"Indexing files from {start_msg_id} to {end_msg_id} in channel {channel_id}... Duplicates allowed: {dup}")
-
-    progress = {"processed": 0, "total": 0}
-
-    batch_size = 50
-    count = 0
-    for batch_start in range(start_msg_id, end_msg_id + 1, batch_size):
-        batch_end = min(batch_start + batch_size - 1, end_msg_id)
-        ids = list(range(batch_start, batch_end + 1))
-        messages = []
-        for msg_id in ids:
+        batch_size = 50
+        count = 0
+        for batch_start in range(start_id, end_id + 1, batch_size):
+            batch_end = min(batch_start + batch_size - 1, end_id)
+            ids = list(range(batch_start, batch_end + 1))
+            messages = []
             try:
-                msg = await client.get_messages(channel_id, msg_id)
-                messages.append(msg)
+                messages = await safe_api_call(client.get_messages(channel_id, ids))
             except Exception as e:
-                logger.warning(f"Could not get message {msg_id}: {e}")
-                continue
-        for msg in messages:
-            if not msg:
-                continue
-            if msg.document or msg.video or msg.audio or msg.photo:
-                progress["total"] += 1
-                await queue_file_for_processing(
-                    msg,
-                    channel_id=channel_id,
-                    reply_func=reply.edit_text,
-                    duplicate=dup,
-                    progress=progress
-                )
-                
-    last_processed = -1
-    while progress["processed"] < progress["total"]:
-        if progress["processed"] != last_processed:
-            await safe_api_call(reply.edit_text(f"🔁 Indexing in progress... {progress['processed']}/{progress['total']} files processed."))
-            last_processed = progress["processed"]
-        await asyncio.sleep(10)
+                logger.warning(f"Could not get messages in batch {batch_start}-{batch_end}: {e}")
 
-    await safe_api_call(reply.edit_text(f"✅ Indexing completed! Total files queued: {progress['total']}"))
-    await bot.delete_messages(OWNER_ID, [start_msg.id, end_msg.id, prompt.id, prompt2.id, message.id])
-    invalidate_search_cache()
+            for msg in messages:
+                if not msg:
+                    continue
+                if msg.document or msg.video or msg.audio or msg.photo:
+                    await queue_file_for_processing(
+                        msg,
+                        channel_id=channel_id,
+                        reply_func=reply.edit_text,
+                        duplicate=dup
+                    )
+                    count += 1
+            await safe_api_call(reply.edit_text(f"🔁 <b>Indexing in progress...</b> {count} files queued so far."))
+
+        asyncio.create_task(watch_queue(reply, count))
+    except Exception as e:
+        logger.error(f"[index_channel_files] Error: {e}")
+        await message.reply_text("❌ <b>An error occurred during the indexing process.</b>")
 
 @bot.on_message(filters.private & filters.command("del") & filters.user(OWNER_ID))
 async def delete_command(client, message):
     try:
-        args = message.text.split(maxsplit=3)
-        if len(args) < 3:
-            await message.reply_text("Usage: /del <file|tmdb <link> [end_link]")
+        args = message.command
+        if not (2 <= len(args) <= 3):
+            await message.reply_text("<b>Usage:</b> /del <link> [end_link]")
             return
-        delete_type = args[1].strip().lower()
-        user_input = args[2].strip()
-        end_input = args[3].strip() if len(args) > 3 else None
 
-        if delete_type == "file":
+        if len(args) == 2:
+            # Single link deletion (TMDB or Telegram)
+            user_input = args[1].strip()
             try:
-                channel_id, msg_id = extract_channel_and_msg_id(user_input)
-                if end_input:
-                    end_channel_id, end_msg_id = extract_channel_and_msg_id(end_input)
-                    if channel_id != end_channel_id:
-                        await message.reply_text("Start and end links must be from the same channel.")
-                        return
-                    if msg_id > end_msg_id:
-                        msg_id, end_msg_id = end_msg_id, msg_id
-                    result = await files_col.delete_many({
-                        "channel_id": channel_id,
-                        "message_id": {"$gte": msg_id, "$lte": end_msg_id}
-                    })
-                    await message.reply_text(f"Deleted {result.deleted_count} files from {msg_id} to {end_msg_id} in channel {channel_id}.")
-                else:
-                    result = await files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
-                    await message.reply_text(f"Deleted file with message ID {msg_id} in channel {channel_id}.")
-            except ValueError as e:
-                await message.reply_text(f"Error: {e}")
-        elif delete_type == "tmdb":
-            try:
-                if end_input:
-                    tmdb_type = user_input.lower()
-                    tmdb_id = int(end_input.strip())
-                else:
-                    tmdb_type, tmdb_id = await extract_tmdb_link(user_input)
-
+                # Try TMDB first
+                tmdb_type, tmdb_id = await extract_tmdb_link(user_input)
                 result = await tmdb_col.delete_one({"tmdb_type": tmdb_type, "tmdb_id": tmdb_id})
-
                 if result.deleted_count > 0:
                     await message.reply_text(f"Database record deleted: {tmdb_type}/{tmdb_id}.")
                 else:
                     await message.reply_text(f"No TMDB record found with ID {tmdb_type}/{tmdb_id} in the database.")
+            except ValueError:
+                # Not a TMDB link, try Telegram
+                try:
+                    channel_id, msg_id = extract_channel_and_msg_id(user_input)
+                    result = await files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
+                    if result.deleted_count > 0:
+                        await message.reply_text(f"Deleted file with message ID {msg_id} in channel {channel_id}.")
+                    else:
+                        await message.reply_text(f"No file record found for message ID {msg_id} in channel {channel_id}.")
+                except ValueError:
+                    # Not a Telegram link either
+                    await message.reply_text("Invalid link provided. Please provide a valid TMDB or Telegram message link.")
+        
+        elif len(args) == 3:
+            # Range deletion for Telegram links
+            start_link = args[1].strip()
+            end_link = args[2].strip()
+            try:
+                channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
+                end_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+                if channel_id != end_channel_id:
+                    await message.reply_text("Start and end links must be from the same channel.")
+                    return
+                if start_msg_id > end_msg_id:
+                    start_msg_id, end_msg_id = end_msg_id, start_msg_id
+                result = await files_col.delete_many({
+                    "channel_id": channel_id,
+                    "message_id": {"$gte": start_msg_id, "$lte": end_msg_id}
+                })
+                await message.reply_text(f"Deleted {result.deleted_count} files from {start_msg_id} to {end_msg_id} in channel {channel_id}.")
             except ValueError as e:
-                await message.reply_text(f"Error: {e}")
-        else:
-            await message.reply_text("Invalid delete type. Use 'file' or 'tmdb'.")
+                await message.reply_text(f"Error: Invalid Telegram link provided for range deletion. {e}")
+
     except Exception as e:
         logger.error(f"Error in delete_command: {e}")
         await message.reply_text(f"An error occurred: {e}")
@@ -365,30 +355,80 @@ async def remove_channel_handler(client, message: Message):
 
 @bot.on_message(filters.command("broadcast") & filters.chat(LOG_CHANNEL_ID))
 async def broadcast_handler(client, message: Message):
+    global broadcasting
     if message.reply_to_message:
-        users = users_col.find({}, {"_id": 0, "user_id": 1})
-        total = 0
-        failed = 0
-        removed = 0
+        if broadcasting:
+            await message.reply_text("already broadcasting")
+            return
+        users = await users_col.find({}, {"_id": 0, "user_id": 1}).to_list(length=None)
+        total_users = len(users)
+        sent_count = 0
+        failed_count = 0
+        removed_count = 0
+        broadcasting = True
 
-        async for user in users:
-             try:
+        status_message = await safe_api_call(message.reply_text(
+            f"📢 Broadcast in progress...\n\n"
+            f"👥 Total Users: {total_users}\n"
+            f"✅ Sent: {sent_count}\n"
+            f"❌ Failed: {failed_count}\n"
+            f"🗑️ Removed: {removed_count}",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Cancel", callback_data="cancel_broadcast")]]
+            )
+        ))
+
+        for i, user in enumerate(users):
+            if not broadcasting:
+                await status_message.edit_text("📢 **Broadcast cancelled.**")
+                break
+            try:
                 msg = message.reply_to_message
                 if msg.forward_from_chat:
-                     await safe_api_call(msg.copy(chat_id=user["user_id"],
-                                                  caption=f"{msg.caption.html}\n\n✅ <b>Now Available!</b>",
-                                                  reply_markup=msg.reply_markup
-                                        ))
+                    await safe_api_call(msg.copy(chat_id=user["user_id"],
+                                                 caption=f"{msg.caption.html}\n\n✅ <b>Now Available!</b>",
+                                                 reply_markup=msg.reply_markup
+                                                 ))
                 else:
                     await safe_api_call(msg.copy(user["user_id"]))
-                total += 1
-             except (UserIsBlocked, InputUserDeactivated, PeerIdInvalid, UserIsBot):
+                sent_count += 1
+            except (UserIsBlocked, InputUserDeactivated, PeerIdInvalid, UserIsBot):
                 await users_col.delete_one({"user_id": user["user_id"]})
-                removed += 1
-             except Exception as e:
-                failed += 1
+                removed_count += 1
+            except Exception as e:
+                failed_count += 1
                 logger.error(f"Error broadcasting to {user['user_id']}: {e}")
-        await message.reply_text(f"✅ Broadcasted to {total} users.\n❌ Failed: {failed}\n🗑️ Removed: {removed}")
+
+            if i % 10 == 0:
+                await safe_api_call(status_message.edit_text(
+                    f"📢 Broadcast in progress...\n\n"
+                    f"👥 Total Users: {total_users}\n"
+                    f"✅ Sent: {sent_count}\n"
+                    f"❌ Failed: {failed_count}\n"
+                    f"🗑️ Removed: {removed_count}",
+                    reply_markup=InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("Cancel", callback_data="cancel_broadcast")]]
+                    )
+                ))
+        else:
+            await status_message.edit_text(
+                f"✅ Broadcast finished!**\n\n"
+                f"👥 Total Users: {total_users}\n"
+                f"✅ Sent: {sent_count}\n"
+                f"❌ Failed: {failed_count}\n"
+                f"🗑️ Removed: {removed_count}"
+            )
+
+        broadcasting = False
+
+@bot.on_callback_query(filters.regex("cancel_broadcast"))
+async def cancel_broadcast_handler(client, query):
+    global broadcasting
+    if broadcasting:
+        broadcasting = False
+        await query.answer("Cancelling broadcast...", show_alert=True)
+    else:
+        await query.answer("No broadcast in progress.", show_alert=True)
 
 @bot.on_message(filters.command("log") & filters.private & filters.user(OWNER_ID))
 async def send_log_file(client, message: Message):
