@@ -148,7 +148,7 @@ async def instant_search_handler(client, message):
         reply_markup = InlineKeyboardMarkup(buttons)
         await safe_api_call(reply.edit_text(text, reply_markup=reply_markup, parse_mode=enums.ParseMode.HTML))
     except Exception as e:
-        logger.error(f"Error in instant_search_handler: {e}")
+        logger.error(f"Error in instant_search_handler: {query} | {e}")
         if reply:
             await reply.edit_text("Invalid search query. Please try again with a different query.")
     if reply:

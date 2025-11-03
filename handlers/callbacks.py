@@ -105,7 +105,7 @@ async def channel_search_callback_handler(client, callback_query: CallbackQuery)
     except MessageNotModified:
         pass
     except Exception as e:
-        logger.exception(f"Error in channel_search_callback_handler: {e}")
+        logger.exception(f"Error in channel_search_callback_handler: {query} | {e}")
     finally:
         await callback_query.answer()
 
