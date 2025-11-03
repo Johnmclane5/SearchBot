@@ -5,6 +5,9 @@ from pyrogram import Client, enums
 from cache import user_file_count
 from config import API_ID, API_HASH, BOT_TOKEN
 
+def remove_surrogates(text):
+    return ''.join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
+
 class Bot(Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -16,14 +19,12 @@ class Bot(Client):
 
     def sanitize_query(self, query):
         """Sanitizes and normalizes a search query for consistent matching of 'and' and '&'."""
+        query = remove_surrogates(query)
         query = query.strip().lower()
         query = re.sub(r"\s*&\s*", " and ", query)
         query = re.sub(r"[:',]", "", query)
         query = re.sub(r"[.\s_\-\(\)\[\]!]+", " ", query).strip()
         return query
-
-    def remove_surrogates(self, text):
-        return ''.join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
 
     def encode_file_link(self, channel_id, message_id):
         raw = f"{channel_id}_{message_id}".encode()
