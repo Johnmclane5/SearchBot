@@ -28,7 +28,7 @@ from app import bot
 
 logger = logging.getLogger(__name__)
 
-@bot.on_message(filters.private & (filters.document | filters.video))
+@bot.on_message(filters.private & (filters.document | filters.video & filters.user(OWNER_ID)))
 async def del_file_handler(client, message):
     try:
         reply = None
@@ -55,7 +55,7 @@ async def del_file_handler(client, message):
             
             ]
             reply_markup = InlineKeyboardMarkup(buttons)
-            await message.edit_reply_markup(reply_markup)
+            await message.reply_text(text="Here's your link", reply_markup=reply_markup)
             
         if reply:
             bot.loop.create_task(auto_delete_message(message, reply))
