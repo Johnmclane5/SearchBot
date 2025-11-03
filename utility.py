@@ -548,6 +548,10 @@ async def process_tmdb_info(bot, file_info):
         else:
             result = await get_movie_id(title, year)
           
+        if not result:
+          await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"TMDB Info not found for \n <code>{title}</code>"))
+          return
+          
         tmdb_id, tmdb_type = result['id'], result['media_type']
         exists = await tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
         if not exists:
@@ -573,8 +577,7 @@ async def process_tmdb_info(bot, file_info):
                 )
 
     except Exception as e:
-        logger.error(f"{e}")
-        await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"TMDB Info not found for \n <code>{title}</code>"))
+        logger.error(f"{title} | {e}")
 
 async def file_queue_worker(bot):
     while True:
