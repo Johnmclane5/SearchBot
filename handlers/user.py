@@ -93,7 +93,6 @@ async def channel_file_handler(client, message):
 
         await queue_file_for_processing(message)
         await file_queue.join()
-        invalidate_search_cache()
     except Exception as e:
         logger.error(f"Error in channel_file_handler: {e}")
 
