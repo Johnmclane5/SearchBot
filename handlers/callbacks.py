@@ -57,24 +57,23 @@ async def channel_search_callback_handler(client, callback_query: CallbackQuery)
         channel_name = channel_info.get('channel_name', str(channel_id)) if channel_info else str(channel_id)
 
         if not files:
-            safe_query = bot.remove_surrogates(query)
-            google_search_url = f"https://www.google.com/search?q={safe_query.replace(' ', '+')}"
+            google_search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
             text = (f"I couldn't find anything in {channel_name} for that. 😔\n\n"
                     f"You can double-check the spelling on "
                     f"<b><a href='{google_search_url}'>Google</a></b> to be sure.")
             await callback_query.edit_message_text(text, disable_web_page_preview=True)
             await safe_api_call(client.send_message(
-                LOG_CHANNEL_ID, text=f"{user_link} | <code>{user_id}</code>\n{channel_name} | <code>{safe_query}</code>"
+                LOG_CHANNEL_ID, text=f"{user_link} | <code>{user_id}</code>\n{channel_name} | <code>{query}</code>"
                 ))
             return
 
         total_pages = (total_files + bot.SEARCH_PAGE_SIZE - 1) // bot.SEARCH_PAGE_SIZE
-        text = f"Here's what I found in {bot.remove_surrogates(channel_name)}! 📂"
+        text = f"Here's what I found in {channel_name}! 📂"
         buttons = []
         for f in files:
             file_link = bot.encode_file_link(f["channel_id"], f["message_id"])
             size_str = human_readable_size(f.get('file_size', 0))
-            file_name = bot.remove_surrogates(f.get('file_name', ''))
+            file_name = f.get('file_name', '')
             btn_text = f"{size_str}┃{file_name}"
 
             if mode == 0:
@@ -272,7 +271,7 @@ async def browse_files_handler(client, callback_query: CallbackQuery):
         for f in files:
             file_link = bot.encode_file_link(f["channel_id"], f["message_id"])
             size_str = human_readable_size(f.get('file_size', 0))
-            file_name = bot.remove_surrogates(f.get('file_name', ''))
+            file_name = f.get('file_name', '')
             btn_text = f"{size_str}┃{file_name}"
             if mode == 0:
                 btn = InlineKeyboardButton(btn_text, callback_data=f"getfile:{file_link}")
