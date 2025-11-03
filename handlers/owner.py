@@ -16,7 +16,6 @@ from utility import (
     get_allowed_channels,
     get_queue_size,
     queue_file_for_processing,
-    invalidate_search_cache,
     auto_delete_message,
     safe_api_call,
     remove_unwanted,

@@ -595,7 +595,7 @@ async def file_queue_worker(bot):
             logger.error(f"❌ Error saving file: {e}")
         finally:
             file_queue.task_done()
-
+            invalidate_search_cache()
 # =========================
 # Unified File Queueing
 # =========================
