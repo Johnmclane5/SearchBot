@@ -288,14 +288,9 @@ async def delete_command(client, message):
 async def restart(client, message):
     await message.delete()
     # 🔄 Restart logic
-    try:
-        await bot.stop()
-        process = await asyncio.create_subprocess_shell("python3 update.py")
-        await process.wait()
-        os.execl(sys.executable, sys.executable, "bot.py")
-    except Exception as e:
-        logger.error(f"Error in restart: {e}")
-
+    os.system("python3 update.py")
+    os.execl(sys.executable, sys.executable, "bot.py")
+    
 @bot.on_message(filters.private & filters.command("restore") & filters.user(OWNER_ID))
 async def update_info(client, message):
     try:
