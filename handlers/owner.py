@@ -231,9 +231,12 @@ async def index_channel_files(client, message):
                     progress=progress
                 )
                 
+    last_processed = -1
     while progress["processed"] < progress["total"]:
-        await safe_api_call(reply.edit_text(f"🔁 Indexing in progress... {progress['processed']}/{progress['total']} files processed."))
-        await asyncio.sleep(5)
+        if progress["processed"] != last_processed:
+            await safe_api_call(reply.edit_text(f"🔁 Indexing in progress... {progress['processed']}/{progress['total']} files processed."))
+            last_processed = progress["processed"]
+        await asyncio.sleep(10)
 
     await safe_api_call(reply.edit_text(f"✅ Indexing completed! Total files queued: {progress['total']}"))
     await bot.delete_messages(OWNER_ID, [start_msg.id, end_msg.id, prompt.id, prompt2.id, message.id])
