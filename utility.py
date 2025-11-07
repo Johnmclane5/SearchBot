@@ -361,25 +361,25 @@ async def restore_tmdb_photos(bot, start_id=None):
         tmdb_id = doc.get("tmdb_id")
         tmdb_type = doc.get("tmdb_type")
         try:
-            if poster_url and SEND_UPDATES:
+            if SEND_UPDATES:
                 info = await get_info(tmdb_type, tmdb_id)
                 poster_url = info.get('poster_url')
                 trailer_url = info.get('trailer_url')
                 message = info.get('message')
+                if poster_url:
+                    keyboard = InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
+                    ) if trailer_url else None
 
-                keyboard = InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
-                ) if trailer_url else None
-
-                await safe_api_call(
-                    bot.send_photo(
-                        UPDATE_CHANNEL_ID,
-                        photo=poster_url,
-                        caption=message,
-                        parse_mode=enums.ParseMode.HTML,
-                        reply_markup=keyboard
+                    await safe_api_call(
+                        bot.send_photo(
+                            UPDATE_CHANNEL_ID,
+                            photo=poster_url,
+                            caption=message,
+                            parse_mode=enums.ParseMode.HTML,
+                            reply_markup=keyboard
+                        )
                     )
-                )
         except Exception as e:
             logger.error(f"Error in restore_tmdb_photos for tmdb_id={tmdb_id}: {e}")
             continue
@@ -559,27 +559,26 @@ async def process_tmdb_info(bot, file_info):
         tmdb_id, tmdb_type = result['id'], result['media_type']
         exists = await tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
         if not exists:
-            if poster_url and SEND_UPDATES:
+            await upsert_tmdb_info(tmdb_id, tmdb_type)
+            if SEND_UPDATES:
                 info = await get_info(tmdb_type, tmdb_id)
                 poster_url = info.get('poster_url')
                 trailer_url = info.get('trailer_url')
                 message = info.get('message')
-
-                keyboard = InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
-                ) if trailer_url else None
-
-                await upsert_tmdb_info(tmdb_id, tmdb_type)
+                if poster_url:
+                    keyboard = InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
+                    ) if trailer_url else None
                 
-                await safe_api_call(
-                    bot.send_photo(
-                        UPDATE_CHANNEL_ID,
-                        photo=poster_url,
-                        caption=message,
-                        parse_mode=enums.ParseMode.HTML,
-                        reply_markup=keyboard
+                    await safe_api_call(
+                                  bot.send_photo(
+                                  UPDATE_CHANNEL_ID,
+                                  photo=poster_url,
+                                  caption=message,
+                                  parse_mode=enums.ParseMode.HTML,
+                                  reply_markup=keyboard
+                                  )
                     )
-                )
 
     except Exception as e:
         logger.error(f"{title} | {e}")
