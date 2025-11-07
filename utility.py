@@ -83,12 +83,16 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         {
             "text": {
                 "query": term,
-                "path": "file_name"
+                "path": "file_name",
+                "fuzzy": {
+                    "maxEdits": 2,  # allows up to 2 typos (Levenshtein distance)
+                    "prefixLength": 1  # require first letter(s) to match
+                }
             }
         }
         for term in terms
     ]
-
+    
     # Build search stage with compound.must
     search_stage = {
         "$search": {
@@ -357,16 +361,16 @@ async def restore_tmdb_photos(bot, start_id=None):
         tmdb_id = doc.get("tmdb_id")
         tmdb_type = doc.get("tmdb_type")
         try:
-            info = await get_info(tmdb_type, tmdb_id)
-            poster_url = info.get('poster_url')
-            trailer_url = info.get('trailer_url')
-            message = info.get('message')
-
-            keyboard = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
-            ) if trailer_url else None
-
             if poster_url and SEND_UPDATES:
+                info = await get_info(tmdb_type, tmdb_id)
+                poster_url = info.get('poster_url')
+                trailer_url = info.get('trailer_url')
+                message = info.get('message')
+
+                keyboard = InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
+                ) if trailer_url else None
+
                 await safe_api_call(
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,
@@ -555,17 +559,18 @@ async def process_tmdb_info(bot, file_info):
         tmdb_id, tmdb_type = result['id'], result['media_type']
         exists = await tmdb_col.find_one({"tmdb_id": tmdb_id, "tmdb_type": tmdb_type})
         if not exists:
-            info = await get_info(tmdb_type, tmdb_id)
-            poster_url = info.get('poster_url')
-            trailer_url = info.get('trailer_url')
-            message = info.get('message')
-
-            keyboard = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
-            ) if trailer_url else None
-
             if poster_url and SEND_UPDATES:
+                info = await get_info(tmdb_type, tmdb_id)
+                poster_url = info.get('poster_url')
+                trailer_url = info.get('trailer_url')
+                message = info.get('message')
+
+                keyboard = InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
+                ) if trailer_url else None
+
                 await upsert_tmdb_info(tmdb_id, tmdb_type)
+                
                 await safe_api_call(
                     bot.send_photo(
                         UPDATE_CHANNEL_ID,
