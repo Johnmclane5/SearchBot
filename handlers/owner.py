@@ -20,6 +20,7 @@ from utility import (
     safe_api_call,
     remove_unwanted,
     restore_tmdb_photos,
+    restore_imgbb_photos,
     human_readable_size,
     extract_tmdb_link,
     get_info, upload_to_imgbb
@@ -235,56 +236,77 @@ async def delete_command(client, message):
     try:
         args = message.command
         if not (2 <= len(args) <= 3):
-            await message.reply_text("<b>Usage:</b> /del <link> [end_link]")
+            await message.reply_text("<b>Usage:</b> /del <link | image_url> [end_link]")
             return
 
+        # --- CASE 1: Single deletion (TMDB / Telegram / image_url)
         if len(args) == 2:
-            # Single link deletion (TMDB or Telegram)
             user_input = args[1].strip()
+
+            # Try TMDB deletion
             try:
-                # Try TMDB first
                 tmdb_type, tmdb_id = await extract_tmdb_link(user_input)
                 result = await tmdb_col.delete_one({"tmdb_type": tmdb_type, "tmdb_id": tmdb_id})
                 if result.deleted_count > 0:
-                    await message.reply_text(f"Database record deleted: {tmdb_type}/{tmdb_id}.")
+                    await message.reply_text(f"✅ Deleted TMDB record: {tmdb_type}/{tmdb_id}")
+                    return
                 else:
-                    await message.reply_text(f"No TMDB record found with ID {tmdb_type}/{tmdb_id} in the database.")
+                    await message.reply_text(f"No TMDB record found with ID {tmdb_type}/{tmdb_id}")
+                    return
             except ValueError:
-                # Not a TMDB link, try Telegram
-                try:
-                    channel_id, msg_id = extract_channel_and_msg_id(user_input)
-                    result = await files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
-                    if result.deleted_count > 0:
-                        await message.reply_text(f"Deleted file with message ID {msg_id} in channel {channel_id}.")
-                    else:
-                        await message.reply_text(f"No file record found for message ID {msg_id} in channel {channel_id}.")
-                except ValueError:
-                    # Not a Telegram link either
-                    await message.reply_text("Invalid link provided. Please provide a valid TMDB or Telegram message link.")
-        
+                pass  # Not a TMDB link
+
+            # Try Telegram link deletion
+            try:
+                channel_id, msg_id = extract_channel_and_msg_id(user_input)
+                result = await files_col.delete_one({"channel_id": channel_id, "message_id": msg_id})
+                if result.deleted_count > 0:
+                    await message.reply_text(f"✅ Deleted file with message ID {msg_id} in channel {channel_id}")
+                    return
+                else:
+                    await message.reply_text(f"No file record found for message ID {msg_id} in channel {channel_id}")
+                    return
+            except ValueError:
+                pass  # Not a Telegram link
+
+            # Try image URL deletion
+            result = await imgbb_col.delete_one({"image_url": user_input})
+            if result.deleted_count > 0:
+                await message.reply_text(f"✅ Deleted image record with URL: {user_input}")
+            else:
+                await message.reply_text(f"No image record found for URL: {user_input}")
+
+        # --- CASE 2: Range deletion (Telegram only)
         elif len(args) == 3:
-            # Range deletion for Telegram links
             start_link = args[1].strip()
             end_link = args[2].strip()
+
             try:
                 channel_id, start_msg_id = extract_channel_and_msg_id(start_link)
                 end_channel_id, end_msg_id = extract_channel_and_msg_id(end_link)
+
                 if channel_id != end_channel_id:
                     await message.reply_text("Start and end links must be from the same channel.")
                     return
+
                 if start_msg_id > end_msg_id:
                     start_msg_id, end_msg_id = end_msg_id, start_msg_id
+
                 result = await files_col.delete_many({
                     "channel_id": channel_id,
                     "message_id": {"$gte": start_msg_id, "$lte": end_msg_id}
                 })
-                await message.reply_text(f"Deleted {result.deleted_count} files from {start_msg_id} to {end_msg_id} in channel {channel_id}.")
+
+                await message.reply_text(
+                    f"✅ Deleted {result.deleted_count} files from {start_msg_id} to {end_msg_id} in channel {channel_id}."
+                )
+
             except ValueError as e:
                 await message.reply_text(f"Error: Invalid Telegram link provided for range deletion. {e}")
 
     except Exception as e:
         logger.error(f"Error in delete_command: {e}")
-        await message.reply_text(f"An error occurred: {e}")
+        await message.reply_text(f"❌ An error occurred: {e}")
 
 @bot.on_message(filters.command('restart') & filters.private & filters.user(OWNER_ID))
 async def restart(client, message):
@@ -310,6 +332,8 @@ async def update_info(client, message):
                 return
         if restore_type == "tmdb":
             await restore_tmdb_photos(bot, start_id)
+        elif restore_type == "imgbb":
+            await restore_imgbb_photos(bot, start_id)
         else:
             await message.reply_text("Invalid restore type. Use 'tmdb'.")
     except Exception as e:
@@ -629,6 +653,8 @@ async def imgbb_handler(client, message: Message):
             return
 
         _, img_url, caption = parts
+
+        caption = caption.replace(".", " ").strip()
 
         # Upload to imgbb (assuming your function returns a URL)
         image_url = await upload_to_imgbb(img_url)

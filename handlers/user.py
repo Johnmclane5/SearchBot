@@ -69,8 +69,8 @@ async def start_handler(client, message):
                f"👤 Joined: {joined_str}"
             )
             buttons = None
-            if await is_user_authorized(user_id):
-                buttons = [[InlineKeyboardButton("Browse Files 📂", callback_data="browse_channels:1")]]
+            # if await is_user_authorized(user_id):
+            #    buttons = [[InlineKeyboardButton("Browse Files 📂", callback_data="browse_channels:1")]]
             reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
             reply_msg = await safe_api_call(message.reply_text(
                 welcome_text,
