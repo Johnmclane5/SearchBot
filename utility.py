@@ -73,10 +73,12 @@ def set_cached_search(query, page, channel_id, files, total_files):
 def invalidate_search_cache():
     search_cache.clear()
     search_api_cache.clear()
-
+    
 def build_search_pipeline(query, allowed_ids, skip, limit):
+    # Split the query string into words
     terms = query.strip().lower().split()
 
+    # Create a separate `text` clause for each term
     must_clauses = [
         {
             "text": {
@@ -88,22 +90,24 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         for term in terms
     ]
 
+    # ✅ Sort by search score INSIDE the $search stage
     search_stage = {
         "$search": {
             "index": "default",
-            "compound": {"must": must_clauses}
+            "compound": {"must": must_clauses},
+            "sort": [
+                {"score": {"order": "desc"}},     # Primary sort: relevance
+                {"path": {"value": "file_name", "order": "asc"}}  # Optional tie-breaker
+            ]
         }
     }
 
+    # Match allowed channel IDs
     match_stage = {
         "$match": {"channel_id": {"$in": allowed_ids}}
     }
 
-    # Sort by search score first!
-    sort_stage = {
-        "$sort": {"score": {"$meta": "searchScore"}}
-    }
-
+    # Project only necessary fields and search score
     project_stage = {
         "$project": {
             "_id": 0,
@@ -116,11 +120,11 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
+    # ✅ Remove the $sort stage (sorting is now handled inside $search)
     facet_stage = {
         "$facet": {
             "results": [
                 project_stage,
-                sort_stage,
                 {"$skip": skip},
                 {"$limit": limit}
             ],
