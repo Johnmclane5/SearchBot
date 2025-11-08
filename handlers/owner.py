@@ -622,28 +622,34 @@ async def unblock_user_handler(client, message: Message):
 
 @bot.on_message(filters.command("ib") & filters.private & filters.user(OWNER_ID))
 async def imgbb_handler(client, message: Message):
-    args = message.text.split()
-    if len(args) != 3:
-        await message.reply_text("Usage: /ib img_url caption")
-        return
     try:
-        image_url = await upload_to_imgbb(args[1])
-        caption = args[2]
-        
+        parts = message.text.split(" ", 2)
+        if len(parts) < 3:
+            await message.reply_text("Usage: /ib image_url caption")
+            return
+
+        _, img_url, caption = parts
+
+        # Upload to imgbb (assuming your function returns a URL)
+        image_url = await upload_to_imgbb(img_url)
+
+        # Save to MongoDB
         await imgbb_col.update_one(
             {"image_url": image_url},
-            {"caption": caption},
+            {"$set": {"caption": caption}},
             upsert=True
         )
 
+        # Send to channel
         await safe_api_call(
             client.send_photo(
-                IMGBB_CHANNEL_ID,
-                photo=f"<b>{caption}</b>",
-                caption=caption,
-                parse_mode=enums.ParseMode.HTML,
+                chat_id=IMGBB_CHANNEL_ID,
+                photo=image_url,
+                caption=f"<b>{caption}</b>",
+                parse_mode=enums.ParseMode.HTML
             )
         )
+
     except Exception as e:
-        await message.reply_text(f"❌ Failed to upload image {e}")
+        await message.reply_text(f"❌ Failed to upload image: {e}")
 
