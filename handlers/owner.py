@@ -619,3 +619,31 @@ async def unblock_user_handler(client, message: Message):
     except Exception as e:
         logger.error(f"Error in unblock_user_handler: {e}")
         await message.reply_text(f"❌ Failed to unblock user: {e}")
+
+@bot.on_message(filters.command("ib") & filters.private & filters.user(OWNER_ID))
+async def imgbb_handler(client, message: Message):
+    args = message.text.split()
+    if len(args) != 3:
+        await message.reply_text("Usage: /ib img_url caption")
+        return
+    try:
+        image_url = await upload_to_imgbb(args[1])
+        caption = args[2]
+        
+        await imgbb_col.update_one(
+            {"image_url": image_url},
+            {"caption": caption},
+            upsert=True
+        )
+
+        await safe_api_call(
+            client.send_photo(
+                IMGBB_CHANNEL_ID,
+                photo=f"<b>{caption}</b>",
+                caption=caption,
+                parse_mode=enums.ParseMode.HTML,
+            )
+        )
+    except Exception as e:
+        await message.reply_text(f"❌ Failed to upload image {e}")
+
