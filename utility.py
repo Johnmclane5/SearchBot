@@ -84,10 +84,7 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
             "text": {
                 "query": term,
                 "path": "file_name",
-                "fuzzy": {
-                    "maxEdits": 2,  # allows up to 2 typos (Levenshtein distance)
-                    "prefixLength": 1  # require first letter(s) to match
-                }
+                "score": {"boost": {"value": 3}}
             }
         }
         for term in terms
@@ -126,8 +123,8 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
     # Sort results by score and then file name
     sort_stage = {
         "$sort": {
+            "file_name": -1,
             "score": -1,
-            "file_name": 1,
         }
     }
 
