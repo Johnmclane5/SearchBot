@@ -28,6 +28,8 @@ from app import bot
 
 logger = logging.getLogger(__name__)
 
+broadcasting = False
+
 @bot.on_message(filters.private & (filters.document | filters.video))
 async def del_file_handler(client, message):
     try:
