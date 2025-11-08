@@ -159,7 +159,7 @@ async def send_file_callback(client, callback_query: CallbackQuery):
             chat_id=user_id,
             from_chat_id=file_doc["channel_id"],
             message_id=file_doc["message_id"],
-            caption=f"",
+            caption=f"<b>{file_name}</b>",
             protect_content=True,
             reply_markup=reply_markup
         ))
