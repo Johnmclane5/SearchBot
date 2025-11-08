@@ -75,10 +75,8 @@ def invalidate_search_cache():
     search_api_cache.clear()
 
 def build_search_pipeline(query, allowed_ids, skip, limit):
-    # Split the query string into words
     terms = query.strip().lower().split()
 
-    # Create a separate `text` clause for each term
     must_clauses = [
         {
             "text": {
@@ -89,25 +87,23 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
         for term in terms
     ]
-    
-    # Build search stage with compound.must
+
     search_stage = {
         "$search": {
             "index": "default",
-            "compound": {
-                "must": must_clauses
-            }
+            "compound": {"must": must_clauses}
         }
     }
 
-    # Match allowed channel IDs
     match_stage = {
-        "$match": {
-            "channel_id": {"$in": allowed_ids}
-        }
+        "$match": {"channel_id": {"$in": allowed_ids}}
     }
 
-    # Project only necessary fields and search score
+    # Sort by search score first!
+    sort_stage = {
+        "$sort": {"score": {"$meta": "searchScore"}}
+    }
+
     project_stage = {
         "$project": {
             "_id": 0,
@@ -120,15 +116,6 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    # Sort results by score and then file name
-    sort_stage = {
-        "$sort": {
-            "file_name": -1,
-            "score": -1,
-        }
-    }
-
-    # Facet: paginated results and total count
     facet_stage = {
         "$facet": {
             "results": [
@@ -137,14 +124,12 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
                 {"$skip": skip},
                 {"$limit": limit}
             ],
-            "totalCount": [
-                {"$count": "total"}
-            ]
+            "totalCount": [{"$count": "total"}]
         }
     }
 
     return [search_stage, match_stage, facet_stage]
-
+  
 # =========================
 # Channel & User Utilities
 # =========================
