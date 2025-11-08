@@ -10,7 +10,7 @@ from pyrogram import filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN, SEND_UPDATES
-from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db
+from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db, imgbb_col
 from utility import (
     extract_channel_and_msg_id,
     get_allowed_channels,
