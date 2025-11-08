@@ -22,7 +22,7 @@ from utility import (
     restore_tmdb_photos,
     human_readable_size,
     extract_tmdb_link,
-    get_info,
+    get_info, upload_to_imgbb
 )
 from app import bot
 
