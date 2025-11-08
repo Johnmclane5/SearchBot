@@ -369,7 +369,7 @@ async def restore_tmdb_photos(bot, start_id=None):
                     keyboard = InlineKeyboardMarkup(
                         [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
                     ) if trailer_url else None
-
+                    await asyncio.sleep(3)
                     await safe_api_call(
                         bot.send_photo(
                             UPDATE_CHANNEL_ID,
@@ -382,43 +382,7 @@ async def restore_tmdb_photos(bot, start_id=None):
         except Exception as e:
             logger.error(f"Error in restore_tmdb_photos for tmdb_id={tmdb_id}: {e}")
             continue
-
-async def restore_tmdb_photos(bot, start_id=None):
-    """
-    Restore all TMDB poster photos from the database.
-    For each tmdb entry, fetch details and send the poster to UPDATE_CHANNEL_ID.
-    """
-    query = {}
-    if start_id:
-        query['_id'] = {'$gt': start_id}
-    cursor = tmdb_col.find(query).sort('_id', 1)
-    async for doc in cursor:
-        tmdb_id = doc.get("tmdb_id")
-        tmdb_type = doc.get("tmdb_type")
-        try:
-            if SEND_UPDATES:
-                info = await get_info(tmdb_type, tmdb_id)
-                poster_url = info.get('poster_url')
-                trailer_url = info.get('trailer_url')
-                message = info.get('message')
-                if poster_url:
-                    keyboard = InlineKeyboardMarkup(
-                        [[InlineKeyboardButton("🎥 Trailer", url=trailer_url)]]
-                    ) if trailer_url else None
-
-                    await safe_api_call(
-                        bot.send_photo(
-                            UPDATE_CHANNEL_ID,
-                            photo=poster_url,
-                            caption=message,
-                            parse_mode=enums.ParseMode.HTML,
-                            reply_markup=keyboard
-                        )
-                    )
-        except Exception as e:
-            logger.error(f"Error in restore_tmdb_photos for tmdb_id={tmdb_id}: {e}")
-            continue
-
+          
 async def restore_imgbb_photos(bot, start_id=None):
     """
     Restore all IMGBB poster photos from the database.
@@ -434,6 +398,7 @@ async def restore_imgbb_photos(bot, start_id=None):
         try:
             if SEND_UPDATES:
                 if image_url:
+                    await asyncio.sleep(3)
                     await safe_api_call(
                         bot.send_photo(
                             IMGBB_CHANNEL_ID,
