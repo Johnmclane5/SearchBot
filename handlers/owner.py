@@ -675,7 +675,8 @@ async def imgbb_handler(client, message: Message):
                 parse_mode=enums.ParseMode.HTML
             )
         )
-
+        await asyncio.sleep(10)
+        await message.delete()
     except Exception as e:
         await message.reply_text(f"❌ Failed to upload image: {e}")
 
