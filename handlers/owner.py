@@ -9,8 +9,8 @@ from pyrogram.errors import UserIsBlocked, InputUserDeactivated, ListenerTimeout
 from pyrogram import filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN, SEND_UPDATES, IMGBB_CHANNEL_ID
-from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db, imgbb_col
+from config import OWNER_ID, LOG_CHANNEL_ID, UPDATE_CHANNEL_ID, MY_DOMAIN, SEND_UPDATES
+from db import files_col, allowed_channels_col, auth_users_col, users_col, tmdb_col, db
 from utility import (
     extract_channel_and_msg_id,
     get_allowed_channels,
@@ -20,10 +20,9 @@ from utility import (
     safe_api_call,
     remove_unwanted,
     restore_tmdb_photos,
-    restore_imgbb_photos,
     human_readable_size,
     extract_tmdb_link,
-    get_info, upload_to_imgbb
+    get_info
 )
 from app import bot
 
@@ -269,13 +268,6 @@ async def delete_command(client, message):
             except ValueError:
                 pass  # Not a Telegram link
 
-            # Try image URL deletion
-            result = await imgbb_col.delete_one({"image_url": user_input})
-            if result.deleted_count > 0:
-                await message.reply_text(f"✅ Deleted image record with URL: {user_input}")
-            else:
-                await message.reply_text(f"No image record found for URL: {user_input}")
-
         # --- CASE 2: Range deletion (Telegram only)
         elif len(args) == 3:
             start_link = args[1].strip()
@@ -332,8 +324,6 @@ async def update_info(client, message):
                 return
         if restore_type == "tmdb":
             await restore_tmdb_photos(bot, start_id)
-        elif restore_type == "imgbb":
-            await restore_imgbb_photos(bot, start_id)
         else:
             await message.reply_text("Invalid restore type. Use 'tmdb'.")
     except Exception as e:

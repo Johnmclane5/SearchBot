@@ -8,7 +8,6 @@ import time
 import PTN
 import os
 import logging
-import imgbbpy
 from datetime import datetime, timezone, timedelta
 from pyrogram.errors import (FloodWait, UserNotParticipant, UserIsBlocked,
                               InputUserDeactivated, PeerIdInvalid, UserIsBot, 
@@ -22,7 +21,6 @@ from db import (
     auth_users_col,
     files_col,
     tmdb_col,
-    imgbb_col
 )
 from config import *
 from tmdb import get_movie_id, get_tv_id, get_info
@@ -383,34 +381,6 @@ async def restore_tmdb_photos(bot, start_id=None):
             logger.error(f"Error in restore_tmdb_photos for tmdb_id={tmdb_id}: {e}")
             continue
           
-async def restore_imgbb_photos(bot, start_id=None):
-    """
-    Restore all IMGBB poster photos from the database.
-    For each tmdb entry, fetch caption and send the photo to IMGBB_CHANNEL_ID.
-    """
-    query = {}
-    if start_id:
-        query['_id'] = {'$gt': start_id}
-    cursor = imgbb_col.find(query).sort('_id', 1)
-    async for doc in cursor:
-        image_url = doc.get("image_url")
-        caption = doc.get("caption")
-        try:
-            if SEND_UPDATES:
-                if image_url:
-                    await asyncio.sleep(3)
-                    await safe_api_call(
-                        bot.send_photo(
-                            IMGBB_CHANNEL_ID,
-                            photo=image_url,
-                            caption=f"<b>{caption}</b>",
-                            parse_mode=enums.ParseMode.HTML,
-                        )
-                    )
-        except Exception as e:
-            await safe_api_call(bot.send_message(LOG_CHANNEL_ID, f"Error in restore_imgbb_photos {e}"))
-            continue
-
 def extract_file_info(message, channel_id=None):
     """Extract file info from a Pyrogram message."""
     caption_name = message.caption.strip() if message.caption else None
@@ -727,40 +697,4 @@ async def get_audio_thumbnail(audio_path, output_dir="downloads"):
     
     return None
 
-async def upload_to_imgbb(image_url):
-    """
-    Downloads an image, uploads it to imgbb, and returns the new URL.
-    """
-    if not image_url:
-        return None
-
-    temp_file_path = f"/tmp/{uuid.uuid4()}.jpg"
-    client = None
-    try:
-        # 1. Download the image
-        async with aiohttp.ClientSession() as session:
-            async with session.get(image_url) as response:
-                if response.status != 200:
-                    logger.error(f"Failed to download image from URL: Status {response.status}")
-                with open(temp_file_path, "wb") as f:
-                    while True:
-                        chunk = await response.content.read(1024)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-
-        # 2. Upload the local file
-        client = imgbbpy.AsyncClient(IMGBB_API_KEY)
-        image = await client.upload(file=temp_file_path)
-        return image.url
-
-    except Exception as e:
-        logger.error(f"Error during imgbb upload process: {e}")
-
-    finally:
-        # 3. Clean up resources
-        if client:
-            await client.close()
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
 
