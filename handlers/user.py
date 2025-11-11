@@ -68,15 +68,10 @@ async def start_handler(client, message):
                 "Just send me a title, and I'll start searching for you! 🔎\n\n"
                f"👤 Joined: {joined_str}"
             )
-            buttons = None
-            # if await is_user_authorized(user_id):
-            #    buttons = [[InlineKeyboardButton("Browse Files 📂", callback_data="browse_channels:1")]]
-            reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
             reply_msg = await safe_api_call(message.reply_text(
                 welcome_text,
                 quote=True,
                 reply_to_message_id=message.id,
-                reply_markup=reply_markup,
             ))
     except Exception as e:
         logger.error(f"⚠️ An unexpected error occurred in start_handler: {e}")
