@@ -75,39 +75,44 @@ def invalidate_search_cache():
     search_api_cache.clear()
     
 def build_search_pipeline(query, allowed_ids, skip, limit):
-    # Split the query string into words
+    # --- 1. Preprocess the search query ---
     terms = query.strip().lower().split()
 
-    # Create a separate `text` clause for each term
-    must_clauses = [
-        {
-            "text": {
-                "query": term,
-                "path": "file_name",
-                "score": {"boost": {"value": 3}}
+    # --- 2. If query is empty, create a match-all search ---
+    if not terms:
+        must_clauses = []
+    else:
+        # Create one text clause per term for AND semantics
+        must_clauses = [
+            {
+                "text": {
+                    "query": term,
+                    "path": "file_name",
+                    "score": {"boost": {"value": 3}}
+                }
             }
-        }
-        for term in terms
-    ]
-    
-    # Build search stage with compound.must
+            for term in terms
+        ]
+
+    # --- 3. Build the $search stage with compound.must and filter ---
     search_stage = {
         "$search": {
             "index": "default",
             "compound": {
-                "must": must_clauses
+                "must": must_clauses,
+                "filter": [
+                    {
+                        "terms": {
+                            "path": "channel_id",
+                            "query": allowed_ids
+                        }
+                    }
+                ]
             }
         }
     }
 
-    # Match allowed channel IDs
-    match_stage = {
-        "$match": {
-            "channel_id": {"$in": allowed_ids}
-        }
-    }
-
-    # Project only necessary fields and search score
+    # --- 4. Project relevant fields and include search score ---
     project_stage = {
         "$project": {
             "_id": 0,
@@ -120,15 +125,15 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    # Sort results by score and then file name
+    # --- 5. Sort primarily by relevance (score), then alphabetically ---
     sort_stage = {
         "$sort": {
-            "file_name": -1,
             "score": -1,
+            "file_name": 1
         }
     }
 
-    # Facet: paginated results and total count
+    # --- 6. Paginate results and count total ---
     facet_stage = {
         "$facet": {
             "results": [
@@ -143,7 +148,8 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    return [search_stage, match_stage, facet_stage]
+    # --- 7. Return the complete aggregation pipeline ---
+    return [search_stage, facet_stage]
           
 # =========================
 # Channel & User Utilities
