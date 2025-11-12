@@ -77,12 +77,27 @@ def invalidate_search_cache():
 def build_search_pipeline(query, allowed_ids, skip, limit):
     terms = query.strip().lower().split()
 
+    # Combine autocomplete (prefix) and text (exact token) for best results
     must_clauses = [
         {
-            "text": {
-                "query": term,
-                "path": "file_name",
-                "score": {"boost": {"value": 3}}
+            "compound": {
+                "should": [
+                    {
+                        "autocomplete": {
+                            "query": term,
+                            "path": "file_name",
+                            "score": {"boost": {"value": 3}},
+                            "fuzzy": {"maxEdits": 1}  # Optional: tolerate small typos
+                        }
+                    },
+                    {
+                        "text": {
+                            "query": term,
+                            "path": "file_name",
+                            "score": {"boost": {"value": 2}}
+                        }
+                    }
+                ]
             }
         }
         for term in terms
@@ -109,7 +124,7 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    sort_stage = {"$sort": {"file_name": -1, "score": -1,  "_id": 1}}  # Sort *before* pagination
+    sort_stage = {"$sort": {"score": -1, "file_name": 1, "_id": 1}}
 
     facet_stage = {
         "$facet": {
