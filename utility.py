@@ -97,7 +97,6 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
                     "query": terms[0],
                     "path": "file_name",
                     "score": {"boost": {"value": 1}},
-                    "tokenOrder": "sequential"
                 }
             }
         }
