@@ -75,27 +75,27 @@ def invalidate_search_cache():
     search_api_cache.clear()
     
 def build_search_pipeline(query, allowed_ids, skip, limit):
-    # Basic Atlas Search text stage
+    terms = query.strip().lower().split()
+
+    must_clauses = [
+        {
+            "text": {
+                "query": term,
+                "path": "file_name",
+            }
+        }
+        for term in terms
+    ]
+
     search_stage = {
         "$search": {
             "index": "default",
-            "text": {
-                "query": query,
-                "path": "file_name",
-                "score": {"boost": {"value": 3}},
-                "fuzzy": {"maxEdits": 1}  # optional: allows minor typos
-            }
+            "compound": {"must": must_clauses}
         }
     }
 
-    # Match allowed channel IDs
-    match_stage = {
-        "$match": {
-            "channel_id": {"$in": allowed_ids}
-        }
-    }
+    match_stage = {"$match": {"channel_id": {"$in": allowed_ids}}}
 
-    # Project only required fields
     project_stage = {
         "$project": {
             "_id": 1,
@@ -108,16 +108,8 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    # Sort by search relevance (score), then file_name alphabetically
-    sort_stage = {
-        "$sort": {
-            "score": -1,
-            "file_name": 1,
-            "_id": 1  # stable tiebreaker
-        }
-    }
+    sort_stage = {"$sort": {"score": -1,  "_id": 1}}  # Sort *before* pagination
 
-    # Paginate results and count total
     facet_stage = {
         "$facet": {
             "results": [
