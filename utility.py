@@ -77,22 +77,31 @@ def invalidate_search_cache():
 def build_search_pipeline(query, allowed_ids, skip, limit):
     terms = query.strip().lower().split()
 
-    must_clauses = [
-        {
-            "text": {
-                "query": term,
-                "path": "file_name",
+    # If user entered more than one term → use a phrase search
+    if len(terms) > 1:
+        search_stage = {
+            "$search": {
+                "index": "default",
+                "phrase": {
+                    "query": query,
+                    "path": "file_name"
+                }
             }
         }
-        for term in terms
-    ]
-
-    search_stage = {
-        "$search": {
-            "index": "default",
-            "compound": {"must": must_clauses}
+    else:
+        # Single term → match exact word only (not substring)
+        search_stage = {
+            "$search": {
+                "index": "default",
+                "text": {
+                    "query": terms[0],
+                    "path": "file_name",
+                    "synonyms": [],  # optional: ensures no synonym expansion
+                    "score": {"boost": {"value": 1}},
+                    "tokenOrder": "sequential"
+                }
+            }
         }
-    }
 
     match_stage = {"$match": {"channel_id": {"$in": allowed_ids}}}
 
@@ -108,7 +117,8 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    sort_stage = {"$sort": {"score": -1,  "_id": 1}}  # Sort *before* pagination
+    # Sort alphabetically before pagination
+    sort_stage = {"$sort": {"file_name": 1, "_id": 1}}
 
     facet_stage = {
         "$facet": {
