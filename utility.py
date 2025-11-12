@@ -102,15 +102,16 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
                 "must": must_clauses,
                 "filter": [
                     {
-                        "terms": {
+                        "in": {
                             "path": "channel_id",
-                            "query": allowed_ids
+                            "value": allowed_ids
                         }
                     }
                 ]
             }
         }
     }
+
 
     # --- 4. Project relevant fields and include search score ---
     project_stage = {
