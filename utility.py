@@ -109,7 +109,7 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
         }
     }
 
-    sort_stage = {"$sort": {"file_name": -1, "score": -1,  "_id": 1}}  # Sort *before* pagination
+    sort_stage = {"$sort": {"file_name": 1, "score": -1,  "_id": 1}}  # Sort *before* pagination
 
     facet_stage = {
         "$facet": {
