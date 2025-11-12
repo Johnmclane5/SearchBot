@@ -79,7 +79,7 @@ def build_search_pipeline(query, allowed_ids, skip, limit):
 
     must_clauses = [
         {
-            "autocomplete": {
+            "text": {
                 "query": term,
                 "path": "file_name",
                 "fuzzy": {"maxEdits": 1},
