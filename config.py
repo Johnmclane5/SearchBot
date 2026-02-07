@@ -22,7 +22,7 @@ logging.basicConfig(
     ]
 )
 
-logger = logging.getLogger("sharing_bot")
+logger = logging.getLogger("nw_shr_bot")
                 
 # Suppress Pyrogram logs except for errors
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
